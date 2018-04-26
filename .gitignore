@@ -1,3 +1,12 @@
+# Dependencies and installation 
+openrave/
+v-hacd/
+
+# Other github directories
+tools/voxel_tools/binvox_rw_py
+
+# Temporarary generated data directories
+tmp/
 # Dex-Net ignores
 data/db/*
 *.dexnet

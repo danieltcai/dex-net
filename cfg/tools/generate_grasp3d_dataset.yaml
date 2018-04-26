@@ -10,7 +10,11 @@ gripper: yumi_metal_spline # Original
 target_objects:
   3dnet:
     - 1053d2629557ac822187df09898670a9
-  #   all
+    - 1072f1d1b9531da95833b7f8c91b5b48
+    - 109d55a137c042f5760315ac3bf2c13e
+    - 10af417d12cbc4badc0dec45107520e9
+
+    # all
   # kit:
   # #   all
 
@@ -119,6 +123,6 @@ vis:
   grasp_images: 0
   voxel_map: 1
   grasp_point_size: 500
-  skip: 50 # If choose to visualize voxel map, number to skip between visualizations
+  skip: 10 # If choose to visualize voxel map, number to skip between visualizations
 verbose: 0
 debug: 0

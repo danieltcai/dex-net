@@ -128,6 +128,10 @@ import voxel_tools.binvox_rw_py.binvox_rw as bv
 import subprocess
 # from matplotlib import pyplot as plt
 
+# temp
+import matplotlib.pyplot as plt
+
+
 
 
 logging.root.name = 'dex-net'
@@ -150,14 +154,15 @@ class GraspInfo(object):
 def calculate_grasp_voxel_location(grasp, obj):
     # First, get the grasp coordinates in world frame
     g1_obj_frame, g2_obj_frame = grasp.endpoints
+    gc_obj_frame = grasp.center
     g1_obj_frame = Point(g1_obj_frame, 'obj')
     g2_obj_frame = Point(g2_obj_frame, 'obj')
-    # center = grasp.center
-    # center = Point(center, 'obj')
+    gc_obj_frame = Point(gc_obj_frame, 'obj')
     
     T_obj_world=RigidTransform(from_frame='obj', to_frame='world')
     g1_world = T_obj_world.apply(g1_obj_frame).data[0:3]
     g2_world = T_obj_world.apply(g2_obj_frame).data[0:3]
+    gc_world = T_obj_world.apply(gc_obj_frame).data[0:3]
 
 
     # grasp_voxel_coords = np.vstack((g1_tf.data[0:3], g2_tf.data[0:3]))
@@ -190,12 +195,13 @@ def calculate_grasp_voxel_location(grasp, obj):
     # Finally, transform the grasp coordinates to voxel space
     g1_voxel_space = voxel_dim * scaling * (g1_world + translation)
     g2_voxel_space = voxel_dim * scaling * (g2_world + translation)
+    gc_voxel_space = voxel_dim * scaling * (gc_world + translation)
 
     grasp_voxel_coords = np.vstack((g1_voxel_space, g2_voxel_space))
     # print("!@#!@#")
     # print(grasp_voxel_coords)
 
-    return grasp_voxel_coords
+    return grasp_voxel_coords, gc_voxel_space
 
 
 
@@ -534,15 +540,25 @@ def generate_gqcnn_dataset(dataset_path,
                                     voxel_path))   
 
                             # Map grasp coordinate to voxel location
-                            grasp_voxel_coords = calculate_grasp_voxel_location(aligned_grasp, obj)
+                            grasp_endpts_voxel_coords, grasp_center_voxel_coords = calculate_grasp_voxel_location(aligned_grasp, obj)
                             if verbose: logging.info(
                                 'Grasp endpoints in voxel space: {}'.format(
-                                grasp_voxel_coords))
+                                grasp_endpts_voxel_coords))
 
                             # Create label for training
                             z_rot = aligned_grasp.approach_angle
                             y_rot = aligned_grasp.grasp_angles_from_stp_z(stable_pose) 
                             y_rot, x_rot, _ = aligned_grasp.grasp_angles_from_stp_z(stable_pose) 
+                            print("GQ Metric")
+                            grasp_metrics = dataset.grasp_metrics(obj.key, aligned_grasps, gripper=gripper.name)
+                            for metric_name, metric_val in grasp_metrics[aligned_grasp.id].iteritems():
+                                print metric_name
+                                print metric_val
+
+                            print("ENDPTS")
+                            print(grasp_endpts_voxel_coords)
+                            print("CENTER")
+                            print(grasp_center_voxel_coords)
                             print("ANGLES")
                             print(np.rad2deg(z_rot))
                             print(np.rad2deg(y_rot))
@@ -553,7 +569,11 @@ def generate_gqcnn_dataset(dataset_path,
                                 with open(voxel_path, 'rb') as fin:
                                     model = bv.read_as_coord_array(fin) 
                                     voxels = model.data.T 
-                                    vplot.plot_grasps(voxels, grasp_voxel_coords, point_size=point_size)
+                                    # fig = plt.figure() # These 4 lines to just vis surf
+                                    # ax = fig.add_subplot(111, projection='3d')
+                                    # vplot.plot_surface(ax, voxels)
+                                    # plt.show()
+                                    vplot.plot_grasps(voxels, grasp_endpts_voxel_coords, point_size=point_size)
 
                             # Print progress
                             num_grasps += 1
@@ -577,233 +597,233 @@ def generate_gqcnn_dataset(dataset_path,
                         
 
 
-    '''
-    # setup variables
-    obj_category_map = {}
-    pose_category_map = {}
+#     '''
+#     # setup variables
+#     obj_category_map = {}
+#     pose_category_map = {}
 
-    cur_pose_label = 0
-    cur_obj_label = 0
-    cur_image_label = 0
+#     cur_pose_label = 0
+#     cur_obj_label = 0
+#     cur_image_label = 0
                 
-    # render images for each stable pose of each object in the dataset
-    render_modes = [RenderMode.SEGMASK, RenderMode.DEPTH_SCENE]
-    for dataset in datasets:
-        logging.info('Generating data for dataset %s' %(dataset.name))
+#     # render images for each stable pose of each object in the dataset
+#     render_modes = [RenderMode.SEGMASK, RenderMode.DEPTH_SCENE]
+#     for dataset in datasets:
+#         logging.info('Generating data for dataset %s' %(dataset.name))
         
-        # iterate through all object keys
-        object_keys = dataset.object_keys
-        for obj_key in object_keys:
-            obj = dataset[obj_key]
-            if obj.key not in target_object_keys[dataset.name]:
-                continue
+#         # iterate through all object keys
+#         object_keys = dataset.object_keys
+#         for obj_key in object_keys:
+#             obj = dataset[obj_key]
+#             if obj.key not in target_object_keys[dataset.name]:
+#                 continue
 
-            # read in the stable poses of the mesh
-            stable_poses = dataset.stable_poses(obj.key)
-            for i, stable_pose in enumerate(stable_poses):
+#             # read in the stable poses of the mesh
+#             stable_poses = dataset.stable_poses(obj.key)
+#             for i, stable_pose in enumerate(stable_poses):
 
-                # render images if stable pose is valid
-                if stable_pose.p > stable_pose_min_p:
-                    # log progress
-                    logging.info('Rendering images for object %s in %s' %(obj.key, stable_pose.id))
+#                 # render images if stable pose is valid
+#                 if stable_pose.p > stable_pose_min_p:
+#                     # log progress
+#                     logging.info('Rendering images for object %s in %s' %(obj.key, stable_pose.id))
 
-                    # add to category maps
-                    if obj.key not in obj_category_map.keys():
-                        obj_category_map[obj.key] = cur_obj_label
-                    pose_category_map['%s_%s' %(obj.key, stable_pose.id)] = cur_pose_label
+#                     # add to category maps
+#                     if obj.key not in obj_category_map.keys():
+#                         obj_category_map[obj.key] = cur_obj_label
+#                     pose_category_map['%s_%s' %(obj.key, stable_pose.id)] = cur_pose_label
 
-                    # read in candidate grasps and metrics
-                    candidate_grasp_info = candidate_grasps_dict[obj.key][stable_pose.id]
-                    candidate_grasps = [g.grasp for g in candidate_grasp_info]
-                    grasp_metrics = dataset.grasp_metrics(obj.key, candidate_grasps, gripper=gripper.name)
+#                     # read in candidate grasps and metrics
+#                     candidate_grasp_info = candidate_grasps_dict[obj.key][stable_pose.id]
+#                     candidate_grasps = [g.grasp for g in candidate_grasp_info]
+#                     grasp_metrics = dataset.grasp_metrics(obj.key, candidate_grasps, gripper=gripper.name)
 
-                    # compute object pose relative to the table
-                    T_obj_stp = stable_pose.T_obj_table.as_frames('obj', 'stp')
-                    T_obj_stp = obj.mesh.get_T_surface_obj(T_obj_stp)
+#                     # compute object pose relative to the table
+#                     T_obj_stp = stable_pose.T_obj_table.as_frames('obj', 'stp')
+#                     T_obj_stp = obj.mesh.get_T_surface_obj(T_obj_stp)
 
-                    # sample images from random variable
-                    T_table_obj = RigidTransform(from_frame='table', to_frame='obj')
-                    scene_objs = {'table': SceneObject(table_mesh, T_table_obj)}
-                    urv = UniformPlanarWorksurfaceImageRandomVariable(obj.mesh,
-                                                                      render_modes,
-                                                                      'camera',
-                                                                      env_rv_params,
-                                                                      stable_pose=stable_pose,
-                                                                      scene_objs=scene_objs)
+#                     # sample images from random variable
+#                     T_table_obj = RigidTransform(from_frame='table', to_frame='obj')
+#                     scene_objs = {'table': SceneObject(table_mesh, T_table_obj)}
+#                     urv = UniformPlanarWorksurfaceImageRandomVariable(obj.mesh,
+#                                                                       render_modes,
+#                                                                       'camera',
+#                                                                       env_rv_params,
+#                                                                       stable_pose=stable_pose,
+#                                                                       scene_objs=scene_objs)
                     
-                    render_start = time.time()
-                    render_samples = urv.rvs(size=image_samples_per_stable_pose)
-                    render_stop = time.time()
-                    logging.info('Rendering images took %.3f sec' %(render_stop - render_start))
+#                     render_start = time.time()
+#                     render_samples = urv.rvs(size=image_samples_per_stable_pose)
+#                     render_stop = time.time()
+#                     logging.info('Rendering images took %.3f sec' %(render_stop - render_start))
 
-                    # visualize
-                    if config['vis']['rendered_images']:
-                        d = int(np.ceil(np.sqrt(image_samples_per_stable_pose)))
+#                     # visualize
+#                     if config['vis']['rendered_images']:
+#                         d = int(np.ceil(np.sqrt(image_samples_per_stable_pose)))
 
-                        # binary
-                        vis2d.figure()
-                        for j, render_sample in enumerate(render_samples):
-                            vis2d.subplot(d,d,j+1)
-                            vis2d.imshow(render_sample.renders[RenderMode.SEGMASK].image)
+#                         # binary
+#                         vis2d.figure()
+#                         for j, render_sample in enumerate(render_samples):
+#                             vis2d.subplot(d,d,j+1)
+#                             vis2d.imshow(render_sample.renders[RenderMode.SEGMASK].image)
 
-                        # depth table
-                        vis2d.figure()
-                        for j, render_sample in enumerate(render_samples):
-                            vis2d.subplot(d,d,j+1)
-                            vis2d.imshow(render_sample.renders[RenderMode.DEPTH_SCENE].image)
-                        vis2d.show()
+#                         # depth table
+#                         vis2d.figure()
+#                         for j, render_sample in enumerate(render_samples):
+#                             vis2d.subplot(d,d,j+1)
+#                             vis2d.imshow(render_sample.renders[RenderMode.DEPTH_SCENE].image)
+#                         vis2d.show()
 
-                    # tally total amount of data
-                    num_grasps = len(candidate_grasps)
-                    num_images = image_samples_per_stable_pose 
-                    num_save = num_images * num_grasps
-                    logging.info('Saving %d datapoints' %(num_save))
+#                     # tally total amount of data
+#                     num_grasps = len(candidate_grasps)
+#                     num_images = image_samples_per_stable_pose 
+#                     num_save = num_images * num_grasps
+#                     logging.info('Saving %d datapoints' %(num_save))
 
-                    # for each candidate grasp on the object compute the projection
-                    # of the grasp into image space
-                    for render_sample in render_samples:
-                        # read images
-                        binary_im = render_sample.renders[RenderMode.SEGMASK].image
-                        depth_im_table = render_sample.renders[RenderMode.DEPTH_SCENE].image
-                        # read camera params
-                        T_stp_camera = render_sample.camera.object_to_camera_pose
-                        shifted_camera_intr = render_sample.camera.camera_intr
+#                     # for each candidate grasp on the object compute the projection
+#                     # of the grasp into image space
+#                     for render_sample in render_samples:
+#                         # read images
+#                         binary_im = render_sample.renders[RenderMode.SEGMASK].image
+#                         depth_im_table = render_sample.renders[RenderMode.DEPTH_SCENE].image
+#                         # read camera params
+#                         T_stp_camera = render_sample.camera.object_to_camera_pose
+#                         shifted_camera_intr = render_sample.camera.camera_intr
 
-                        # read pixel offsets
-                        cx = depth_im_table.center[1]
-                        cy = depth_im_table.center[0]
+#                         # read pixel offsets
+#                         cx = depth_im_table.center[1]
+#                         cy = depth_im_table.center[0]
 
-                        # compute intrinsics for virtual camera of the final
-                        # cropped and rescaled images
-                        camera_intr_scale = float(im_final_height) / float(im_crop_height)
-                        cropped_camera_intr = shifted_camera_intr.crop(im_crop_height, im_crop_width, cy, cx)
-                        final_camera_intr = cropped_camera_intr.resize(camera_intr_scale)
+#                         # compute intrinsics for virtual camera of the final
+#                         # cropped and rescaled images
+#                         camera_intr_scale = float(im_final_height) / float(im_crop_height)
+#                         cropped_camera_intr = shifted_camera_intr.crop(im_crop_height, im_crop_width, cy, cx)
+#                         final_camera_intr = cropped_camera_intr.resize(camera_intr_scale)
 
-                        # create a thumbnail for each grasp
-                        for grasp_info in candidate_grasp_info:
-                            '''
-                            candidate_grasp_info = candidate_grasps_dict[obj.key][stable_pose.id]
-                            candidate_grasp_info is list of <GraspInfo> objects, each with .grasp 
-                            and .collision_free properties
-                            '''
-
-
-
-# -------------------------------------insert some code here----------------------
-# running .binvox on mini-dexnet/bar_clamp.obj -d 32
-# Mesh::normalize, bounding box: [-0.03913, -0.036017, -0.058079, 1] - [0.03913, 0.036017, 0.058079, 1]
-#     longest length: 0.116158
-#   normalization transform:
-#   (1) translate [0.03913, 0.036017, 0.058079, 1], (2) scale 8.60896, (3) translate [0, 0, 0]
-
-# # Note remember to import bv and plt and vplot
-# with open('/media/daniel/ubuntu_ext/meshes/mini_dexnet/bar_clamp.binvox', 'rb') as fin:
-#                     model = bv.read_as_coord_array(fin) 
-#                     voxels = model.data.T 
-#                     grasps = np.array(grasp_buf)
-#                     print(grasps.shape)
-#                     plt.imshow(np.squeeze(grasp_images[0]), cmap='gray')
-
-#                     vplot.plot_grasps(voxels, grasps)
+#                         # create a thumbnail for each grasp
+#                         for grasp_info in candidate_grasp_info:
+#                             '''
+#                             candidate_grasp_info = candidate_grasps_dict[obj.key][stable_pose.id]
+#                             candidate_grasp_info is list of <GraspInfo> objects, each with .grasp 
+#                             and .collision_free properties
+#                             '''
 
 
 
+# # -------------------------------------insert some code here----------------------
+# # running .binvox on mini-dexnet/bar_clamp.obj -d 32
+# # Mesh::normalize, bounding box: [-0.03913, -0.036017, -0.058079, 1] - [0.03913, 0.036017, 0.058079, 1]
+# #     longest length: 0.116158
+# #   normalization transform:
+# #   (1) translate [0.03913, 0.036017, 0.058079, 1], (2) scale 8.60896, (3) translate [0, 0, 0]
+
+# # # Note remember to import bv and plt and vplot
+# # with open('/media/daniel/ubuntu_ext/meshes/mini_dexnet/bar_clamp.binvox', 'rb') as fin:
+# #                     model = bv.read_as_coord_array(fin) 
+# #                     voxels = model.data.T 
+# #                     grasps = np.array(grasp_buf)
+# #                     print(grasps.shape)
+# #                     plt.imshow(np.squeeze(grasp_images[0]), cmap='gray')
+
+# #                     vplot.plot_grasps(voxels, grasps)
 
 
-                            # read info
-                            grasp = grasp_info.grasp
-                            collision_free = grasp_info.collision_free
+
+
+
+#                             # read info
+#                             grasp = grasp_info.grasp
+#                             collision_free = grasp_info.collision_free
                             
-                            # get the gripper pose
-                            T_obj_camera = T_stp_camera * T_obj_stp.as_frames('obj', T_stp_camera.from_frame)
-                            grasp_2d = grasp.project_camera(T_obj_camera, shifted_camera_intr)
+#                             # get the gripper pose
+#                             T_obj_camera = T_stp_camera * T_obj_stp.as_frames('obj', T_stp_camera.from_frame)
+#                             grasp_2d = grasp.project_camera(T_obj_camera, shifted_camera_intr)
 
-                            # center images on the grasp, rotate to image x axis
-                            dx = cx - grasp_2d.center.x
-                            dy = cy - grasp_2d.center.y
-                            translation = np.array([dy, dx])
+#                             # center images on the grasp, rotate to image x axis
+#                             dx = cx - grasp_2d.center.x
+#                             dy = cy - grasp_2d.center.y
+#                             translation = np.array([dy, dx])
 
-                            binary_im_tf = binary_im.transform(translation, grasp_2d.angle)
-                            depth_im_tf_table = depth_im_table.transform(translation, grasp_2d.angle)
+#                             binary_im_tf = binary_im.transform(translation, grasp_2d.angle)
+#                             depth_im_tf_table = depth_im_table.transform(translation, grasp_2d.angle)
 
-                            # crop to image size
-                            binary_im_tf = binary_im_tf.crop(im_crop_height, im_crop_width)
-                            depth_im_tf_table = depth_im_tf_table.crop(im_crop_height, im_crop_width)
+#                             # crop to image size
+#                             binary_im_tf = binary_im_tf.crop(im_crop_height, im_crop_width)
+#                             depth_im_tf_table = depth_im_tf_table.crop(im_crop_height, im_crop_width)
 
-                            # resize to image size
-                            binary_im_tf = binary_im_tf.resize((im_final_height, im_final_width), interp='nearest')
-                            depth_im_tf_table = depth_im_tf_table.resize((im_final_height, im_final_width))
+#                             # resize to image size
+#                             binary_im_tf = binary_im_tf.resize((im_final_height, im_final_width), interp='nearest')
+#                             depth_im_tf_table = depth_im_tf_table.resize((im_final_height, im_final_width))
                             
-                            # visualize the transformed images
-                            if config['vis']['grasp_images']:
-                                grasp_center = Point(depth_im_tf_table.center,
-                                                     frame=final_camera_intr.frame)
-                                tf_grasp_2d = Grasp2D(grasp_center, 0,
-                                                      grasp_2d.depth,
-                                                      width=gripper.max_width,
-                                                      camera_intr=final_camera_intr)
+#                             # visualize the transformed images
+#                             if config['vis']['grasp_images']:
+#                                 grasp_center = Point(depth_im_tf_table.center,
+#                                                      frame=final_camera_intr.frame)
+#                                 tf_grasp_2d = Grasp2D(grasp_center, 0,
+#                                                       grasp_2d.depth,
+#                                                       width=gripper.max_width,
+#                                                       camera_intr=final_camera_intr)
 
-                                # plot 2D grasp image
-                                vis2d.figure()
-                                vis2d.subplot(2,2,1)
-                                vis2d.imshow(binary_im)
-                                vis2d.grasp(grasp_2d)
-                                vis2d.subplot(2,2,2)
-                                vis2d.imshow(depth_im_table)
-                                vis2d.grasp(grasp_2d)
-                                vis2d.subplot(2,2,3)
-                                vis2d.imshow(binary_im_tf)
-                                vis2d.grasp(tf_grasp_2d)
-                                vis2d.subplot(2,2,4)
-                                vis2d.imshow(depth_im_tf_table)
-                                vis2d.grasp(tf_grasp_2d)
-                                vis2d.title('Coll Free? %d'%(grasp_info.collision_free))
-                                vis2d.show()
+#                                 # plot 2D grasp image
+#                                 vis2d.figure()
+#                                 vis2d.subplot(2,2,1)
+#                                 vis2d.imshow(binary_im)
+#                                 vis2d.grasp(grasp_2d)
+#                                 vis2d.subplot(2,2,2)
+#                                 vis2d.imshow(depth_im_table)
+#                                 vis2d.grasp(grasp_2d)
+#                                 vis2d.subplot(2,2,3)
+#                                 vis2d.imshow(binary_im_tf)
+#                                 vis2d.grasp(tf_grasp_2d)
+#                                 vis2d.subplot(2,2,4)
+#                                 vis2d.imshow(depth_im_tf_table)
+#                                 vis2d.grasp(tf_grasp_2d)
+#                                 vis2d.title('Coll Free? %d'%(grasp_info.collision_free))
+#                                 vis2d.show()
 
-                                # plot 3D visualization
-                                vis.figure()
-                                T_obj_world = vis.mesh_stable_pose(obj.mesh, stable_pose.T_obj_world, style='surface', dim=0.5)
-                                vis.gripper(gripper, grasp, T_obj_world, color=(0.3,0.3,0.3))
-                                vis.show()
+#                                 # plot 3D visualization
+#                                 vis.figure()
+#                                 T_obj_world = vis.mesh_stable_pose(obj.mesh, stable_pose.T_obj_world, style='surface', dim=0.5)
+#                                 vis.gripper(gripper, grasp, T_obj_world, color=(0.3,0.3,0.3))
+#                                 vis.show()
 
-                            # form hand pose array
-                            hand_pose = np.r_[grasp_2d.center.y,
-                                              grasp_2d.center.x,
-                                              grasp_2d.depth,
-                                              grasp_2d.angle,
-                                              grasp_2d.center.y - shifted_camera_intr.cy,
-                                              grasp_2d.center.x - shifted_camera_intr.cx,
-                                              grasp_2d.width_px]
+#                             # form hand pose array
+#                             hand_pose = np.r_[grasp_2d.center.y,
+#                                               grasp_2d.center.x,
+#                                               grasp_2d.depth,
+#                                               grasp_2d.angle,
+#                                               grasp_2d.center.y - shifted_camera_intr.cy,
+#                                               grasp_2d.center.x - shifted_camera_intr.cx,
+#                                               grasp_2d.width_px]
          
 
-                            # store to data buffers
-                            tensor_datapoint['depth_ims_tf_table'] = depth_im_tf_table.raw_data
-                            tensor_datapoint['obj_masks'] = binary_im_tf.raw_data
-                            tensor_datapoint['hand_poses'] = hand_pose
-                            tensor_datapoint['collision_free'] = collision_free
-                            tensor_datapoint['obj_labels'] = cur_obj_label
-                            tensor_datapoint['pose_labels'] = cur_pose_label
-                            tensor_datapoint['image_labels'] = cur_image_label
+#                             # store to data buffers
+#                             tensor_datapoint['depth_ims_tf_table'] = depth_im_tf_table.raw_data
+#                             tensor_datapoint['obj_masks'] = binary_im_tf.raw_data
+#                             tensor_datapoint['hand_poses'] = hand_pose
+#                             tensor_datapoint['collision_free'] = collision_free
+#                             tensor_datapoint['obj_labels'] = cur_obj_label
+#                             tensor_datapoint['pose_labels'] = cur_pose_label
+#                             tensor_datapoint['image_labels'] = cur_image_label
 
-                            for metric_name, metric_val in grasp_metrics[grasp.id].iteritems():
-                                coll_free_metric = (1 * collision_free) * metric_val
-                                tensor_datapoint[metric_name] = coll_free_metric
-                            tensor_dataset.add(tensor_datapoint)
+#                             for metric_name, metric_val in grasp_metrics[grasp.id].iteritems():
+#                                 coll_free_metric = (1 * collision_free) * metric_val
+#                                 tensor_datapoint[metric_name] = coll_free_metric
+#                             tensor_dataset.add(tensor_datapoint)
 
-                        # update image label
-                        cur_image_label += 1
+#                         # update image label
+#                         cur_image_label += 1
 
-                    # update pose label
-                    cur_pose_label += 1
+#                     # update pose label
+#                     cur_pose_label += 1
 
-                    # force clean up
-                    gc.collect()
+#                     # force clean up
+#                     gc.collect()
 
-            # update object label
-            cur_obj_label += 1
+#             # update object label
+#             cur_obj_label += 1
 
-            # force clean up
-            gc.collect()
+#             # force clean up
+#             gc.collect()
 
     # save last file
     tensor_dataset.flush()
