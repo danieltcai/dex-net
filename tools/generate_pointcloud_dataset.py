@@ -130,7 +130,8 @@ import matplotlib.pyplot as plt
 from depth_image_renderer import Depth_Image_Renderer
 
 
-
+# h5py data saver
+import h5py
 
 logging.root.name = 'dex-net'
 
@@ -248,6 +249,20 @@ def object_to_camera_pose(radius, elev, az, roll, x, y, frame):
                         
     return T_obj_camera.inverse()
 
+
+# Write numpy array data and label to h5_filename
+# Copied from pointnet data_prep_util.py
+def save_h5(h5_filename, data, label, data_dtype='float32', label_dtype='float32'):
+    h5_fout = h5py.File(h5_filename)
+    h5_fout.create_dataset(
+            'data', data=data,
+            compression='gzip', compression_opts=4,
+            dtype=data_dtype)
+    h5_fout.create_dataset(
+            'label', data=label,
+            compression='gzip', compression_opts=1,
+            dtype=label_dtype)
+    h5_fout.close()
 
 
 def generate_gqcnn_dataset(dataset_path,
@@ -613,6 +628,12 @@ def generate_gqcnn_dataset(dataset_path,
     cur_pose_label = 0
     cur_obj_label = 0
     cur_image_label = 0
+
+
+    # setup data recording to HDF5 format NEW
+    point_cloud_data = []
+    grasp_labels = []
+
                 
     # render images for each stable pose of each object in the dataset
     render_modes = [RenderMode.SEGMASK, RenderMode.DEPTH_SCENE]
@@ -698,6 +719,8 @@ def generate_gqcnn_dataset(dataset_path,
                     num_save = num_images * num_grasps
                     logging.info('Saving %d datapoints' %(num_save))
 
+
+
                     # for each candidate grasp on the object compute the projection
                     # of the grasp into image space
                     for render_sample in render_samples:
@@ -746,13 +769,13 @@ def generate_gqcnn_dataset(dataset_path,
                         # Reproject point cloud from depth image
                         if len(sampled_point_coords.shape) == 1 and sampled_point_coords.shape[0] == 2:
                             sampled_point_coords = np.reshape(sampled_point_coords, [1, 2])
-                        pc_from_depth = np.ones((sampled_point_coords.shape[0], 3), dtype=float)
+                        pc_from_depth_rendered_sample = np.ones((sampled_point_coords.shape[0], 3), dtype=float)
                         intr_cx = shifted_camera_intr.cx
                         intr_cy = shifted_camera_intr.cy
                         fx = shifted_camera_intr.fx
                         fy = shifted_camera_intr.fy
-                        pc_from_depth[:, 0] = ((sampled_point_coords.astype(float)[:, 0]) - intr_cx) / fx
-                        pc_from_depth[:, 1] = ((sampled_point_coords.astype(float)[:, 1]) - intr_cy) / fy
+                        pc_from_depth_rendered_sample[:, 0] = ((sampled_point_coords.astype(float)[:, 0]) - intr_cx) / fx
+                        pc_from_depth_rendered_sample[:, 1] = ((sampled_point_coords.astype(float)[:, 1]) - intr_cy) / fy
 
                         depth = np.zeros((num_points))
                         for i in range(num_points):
@@ -764,24 +787,25 @@ def generate_gqcnn_dataset(dataset_path,
                             if len(depth.shape) == 0:
                                 depth = depth * np.ones([len(sampled_point_coords)])
                             assert(depth.shape[0] == sampled_point_coords.shape[0])
-                            pc_from_depth *= depth[:, None]
+                            pc_from_depth_rendered_sample *= depth[:, None]
                         # transform to world coordinate system
                         # if to_world:
-                        #     pc_from_depth = transform_points_3d(pc_from_depth, self.world_from_camera)
+                        #     pc_from_depth_rendered_sample = transform_points_3d(pc_from_depth_rendered_sample, self.world_from_camera)
 
                         # Visualize object point cloud alone
                         # fig = plt.figure()
                         # ax = fig.add_subplot(111, projection='3d')
-                        # xs = pc_from_depth[:,0]
-                        # ys = pc_from_depth[:,1]
-                        # zs = pc_from_depth[:,2]
+                        # xs = pc_from_depth_rendered_sample[:,0]
+                        # ys = pc_from_depth_rendered_sample[:,1]
+                        # zs = pc_from_depth_rendered_sample[:,2]
                         # ax.scatter(xs, ys, zs, s=1, c='blue')    
                         # plt.show()
 
 
                         # Keep track of all the sampled grasps per rendered image NEW
-                        grasp_positions = []
-                        grasp_oris = []
+                        grasp_pos_rendered_sample = []
+                        grasp_ori_rendered_sample = []
+                        grasp_quality_rendered_sample = []
 
                         # create a thumbnail for each grasp
                         for grasp_info in candidate_grasp_info:
@@ -836,30 +860,34 @@ def generate_gqcnn_dataset(dataset_path,
 
                             # NEW: Added function to grasp class to return grasp position and orientation in camera frame
                             grasp_pos_camera_frame, grasp_eul_camera_frame = grasp.grasp_camera_T(T_obj_camera)
-                            # print("grasp depth from grasp3d: {}".format(grasp_pos_camera_frame))
-                            # print("grasp theta from grasp3d: {}".format(np.rad2deg(grasp_eul_camera_frame)))
-                            # print("grasp depth from grasp2d: {}".format(grasp_2d.depth))
-                            # print("grasp theta from grasp2d: {}".format(grasp_2d.angle))
+                            grasp_quality_col_free = (1 * collision_free) * grasp_metrics[grasp.id]['robust_ferrari_canny']
 
-                            grasp_positions.append(grasp_pos_camera_frame)
-                            grasp_oris.append(grasp_eul_camera_frame)
-
-
-                            # Visualize a single grasp on the rendered point cloud
-                            # fig = plt.figure(1)
-                            # ax = fig.add_subplot(111, projection='3d')
-                            # xs = pc_from_depth[:,0]
-                            # ys = pc_from_depth[:,1]
-                            # zs = pc_from_depth[:,2]
-                            # ax.scatter(xs, ys, zs, s=1, c='blue') # Object point cloud    
-                            # ax.scatter(grasp_pos_camera_frame[0], grasp_pos_camera_frame[1], grasp_pos_camera_frame[2], s=50, c='red') # Grasp position
-
-                            # fig_obj_pc = plt.figure(2)
-                            # plt.imshow(np.squeeze(depth_im_tf_table.raw_data))
-                            # plt.show()
+                            grasp_pos_rendered_sample.append(grasp_pos_camera_frame)
+                            grasp_ori_rendered_sample.append(grasp_eul_camera_frame)
+                            grasp_quality_rendered_sample.append(grasp_quality_col_free)
 
                             # visualize the transformed images
                             if config['vis']['grasp_images']:
+                                # Visualize a single grasp on the rendered point cloud
+                                # NEW
+                                # print("grasp depth from grasp3d: {}".format(grasp_pos_camera_frame))
+                                # print("grasp theta from grasp3d: {}".format(np.rad2deg(grasp_eul_camera_frame)))
+                                # print("grasp depth from grasp2d: {}".format(grasp_2d.depth))
+                                # print("grasp theta from grasp2d: {}".format(grasp_2d.angle))
+                                fig = plt.figure(1)
+                                ax = fig.add_subplot(111, projection='3d')
+                                xs = pc_from_depth_rendered_sample[:,0]
+                                ys = pc_from_depth_rendered_sample[:,1]
+                                zs = pc_from_depth_rendered_sample[:,2]
+                                ax.scatter(xs, ys, zs, s=1, c='blue') # Object point cloud    
+                                ax.scatter(grasp_pos_camera_frame[0], grasp_pos_camera_frame[1], grasp_pos_camera_frame[2], s=50, c='red') # Grasp position
+
+                                fig_obj_pc = plt.figure(2)
+                                plt.imshow(np.squeeze(depth_im_tf_table.raw_data))
+                                plt.show()
+
+                                # ORIGINAL STUFF
+                                '''
                                 grasp_center = Point(depth_im_tf_table.center,
                                                      frame=final_camera_intr.frame)
                                 tf_grasp_2d = Grasp2D(grasp_center, 0,
@@ -889,7 +917,8 @@ def generate_gqcnn_dataset(dataset_path,
                                 T_obj_world = vis.mesh_stable_pose(obj.mesh, stable_pose.T_obj_world, style='surface', dim=0.5)
                                 vis.gripper(gripper, grasp, T_obj_world, color=(0.3,0.3,0.3))
                                 vis.show()
-
+                                '''
+    
                             # form hand pose array
                             hand_pose = np.r_[grasp_2d.center.y,
                                               grasp_2d.center.x,
@@ -914,26 +943,54 @@ def generate_gqcnn_dataset(dataset_path,
                                 tensor_datapoint[metric_name] = coll_free_metric
                             tensor_dataset.add(tensor_datapoint)
 
-                        rendered_img_num = (cur_image_label % num_images) + 1
                         # visualize all the grasp positions on the rendered point cloud
+                        rendered_img_num = (cur_image_label % num_images) + 1
                         logging.info("Located {} grasps on rendered image {} (of {}) in stable pose {} of object {}".format(
                             num_grasps, rendered_img_num, num_images, stable_pose.id, obj.key))                        
-                        grasp_positions = np.array(grasp_positions)
-                        grasp_positions = np.reshape(grasp_positions, (-1, 3))
-                        assert num_grasps == grasp_positions.shape[0]
-                        fig = plt.figure(1)
-                        ax = fig.add_subplot(111, projection='3d')
-                        pc_xs = pc_from_depth[:,0]
-                        pc_ys = pc_from_depth[:,1]
-                        pc_zs = pc_from_depth[:,2]
 
-                        g_xs = grasp_positions[:,0]
-                        g_ys = grasp_positions[:,1]
-                        g_zs = grasp_positions[:,2]
+                        # Reshape all of the collected grasp information                         
+                        # grasp_pos_rendered_sample = np.array(grasp_pos_rendered_sample)
+                        # grasp_ori_rendered_sample = np.array(grasp_ori_rendered_sample)
+                        # grasp_quality_rendered_sample = np.array(grasp_quality_rendered_sample)
+                        grasp_pos_rendered_sample = np.reshape(grasp_pos_rendered_sample, (-1, 3))
+                        grasp_ori_rendered_sample = np.reshape(grasp_ori_rendered_sample, (-1, 3))
+                        grasp_quality_rendered_sample = np.reshape(grasp_quality_rendered_sample, (-1, 1))
 
-                        ax.scatter(pc_xs, pc_ys, pc_zs, s=1, c='blue') # Object point cloud
-                        ax.scatter(g_xs, g_ys, g_zs, s=50, c='red') # Grasp positions
-                        plt.show()
+                        assert num_grasps == grasp_pos_rendered_sample.shape[0]
+                        assert num_grasps == grasp_ori_rendered_sample.shape[0]
+                        assert num_grasps == grasp_quality_rendered_sample.shape[0]
+
+                        # fig = plt.figure(1)
+                        # ax = fig.add_subplot(111, projection='3d')
+                        # pc_xs = pc_from_depth_rendered_sample[:,0]
+                        # pc_ys = pc_from_depth_rendered_sample[:,1]
+                        # pc_zs = pc_from_depth_rendered_sample[:,2]
+
+                        # g_xs = grasp_pos_rendered_sample[:,0]
+                        # g_ys = grasp_pos_rendered_sample[:,1]
+                        # g_zs = grasp_pos_rendered_sample[:,2]
+
+                        # ax.scatter(pc_xs, pc_ys, pc_zs, s=1, c='blue') # Object point cloud
+                        # ax.scatter(g_xs, g_ys, g_zs, s=50, c='red') # Grasp positions
+                        # plt.show()
+
+                        # Prepare label
+                        label_rendered_sample = np.hstack([
+                            grasp_quality_rendered_sample,
+                            grasp_pos_rendered_sample,
+                            grasp_ori_rendered_sample])
+                        assert label_rendered_sample.shape == (num_grasps, 7) 
+
+                        # Sort rows (grasps) by grasp quality
+                        grasp_ordering = np.argsort(np.squeeze(grasp_quality_rendered_sample))
+                        sorted_labels = np.flip(label_rendered_sample[grasp_ordering], 0) # Since we want in decreasing order
+                        # print(sorted_labels[:7])
+                        # print(grasp_quality_rendered_sample)
+
+                        point_cloud_data.append(pc_from_depth_rendered_sample)
+                        grasp_labels.append(sorted_labels)
+                        # grasp_labels.append(label_rendered_sample)
+
 
                         # update image label
                         cur_image_label += 1
@@ -952,6 +1009,30 @@ def generate_gqcnn_dataset(dataset_path,
 
     # save last file
     tensor_dataset.flush()
+
+    # Debugging
+    mngpc = float('inf')
+    for vec in grasp_labels:
+        d = vec.shape[0]
+        if d < mngpc:
+            mngpc = d
+    print("Minimum num_grasps_per_cloud: {}".format(mngpc))
+
+    # Only keep the best K grasps
+    num_grasps_to_keep = 20
+    assert num_grasps_to_keep < mngpc
+    truncated_grasp_labels = [label[:num_grasps_to_keep] for label in grasp_labels] # 1 label per point cloud
+
+    point_cloud_data = np.reshape(point_cloud_data, [-1, 2048, 3]) # (num_point_clouds x points_per_cloud x 3)
+    truncated_grasp_labels = np.reshape(truncated_grasp_labels, [-1, num_grasps_to_keep, 7]) # (num_point_clouds x num_grasps_per_cloud x 7) CONFIRM THIS DOES WHAT YOU WANT
+    assert point_cloud_data.shape[0] == truncated_grasp_labels.shape[0]
+
+    # grasp_labels = np.reshape(grasp_labels, [-1, num_grasps_to_keep, 7]) # (num_point_clouds x num_grasps_per_cloud x 7) CONFIRM THIS DOES WHAT YOU WANT
+    filename = 'test_data.h5'
+    print(point_cloud_data)
+    print(truncated_grasp_labels)
+    save_h5(filename, point_cloud_data, truncated_grasp_labels)
+
 
     # save category mappings
     obj_cat_filename = os.path.join(output_dir, 'object_category_map.json')
