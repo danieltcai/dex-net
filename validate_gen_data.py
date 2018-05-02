@@ -1,8 +1,10 @@
 # from data_prep_util import *
+import argparse
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+
 
 '''
 # Write numpy array data and label to h5_filename
@@ -24,16 +26,27 @@ def load_h5(h5_filename):
     label = f['label'][:]
     return (data, label)
 '''
-h5_filename = 'test_data.h5'
+
+# Parse args
+parser = argparse.ArgumentParser(description='Validate generated training data through visualization')
+parser.add_argument('h5_filename', type=str, default=None, help='path to h5 data file')
+parser.add_argument('--data_start', type=int, default=0, help='data point to begin visualization')
+args = parser.parse_args()
+h5_filename = args.h5_filename
+data_start = args.data_start
+
+# Read in h5 file
 f = h5py.File(h5_filename)
 data = f['data'][:]
 label = f['label'][:]
 
-assert len(data) == len(label)
-print(len(data))
-print(len(label))
+# Debug
+# assert len(data) == len(label)
+# print(len(data))
+# print(len(label))
 
-for i in range(len(data)):
+# Visualize each datapoint
+for i in range(data_start, len(data)):
     '''
     what's read should match what's written
     point_cloud_data = np.reshape(point_cloud_data, [-1, 2048, 3]) # (num_point_clouds x points_per_cloud x 3)

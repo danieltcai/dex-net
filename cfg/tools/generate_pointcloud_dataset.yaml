@@ -21,19 +21,19 @@ target_objects:
   # ORIGINAL
   mini_dexnet:
     - bar_clamp
-    # - gearbox
-    # - nozzle
-    # - part1
-    # - part3
-    # - pawn
-    # - turbine_housing
-    # - vase
+    - gearbox
+    - nozzle
+    - part1
+    - part3
+    - pawn
+    - turbine_housing
+    - vase
 
-# Params for voxelization of .obj files
-voxelization:
-  voxel_dim: 32
-  path_to_binvox: tools/voxel_tools/binvox
-
+point_cloud:
+  window_height: 100
+  window_width: 100
+  num_points: 2048
+  num_grasps_to_keep: 20
 
 # Params for random variables controlling the environment (camera intr, camera and object poses)
 env_rv_params:
@@ -120,9 +120,9 @@ tensors:
 vis:
   candidate_grasps: 0
   rendered_images: 0
-  grasp_images: 0
-  voxel_map: 1
-  grasp_point_size: 500
-  skip: 10 # If choose to visualize voxel map, number to skip between visualizations
+  rendered_sample_pc: 0
+  grasp_on_pc: 0
+  data_point: 0
+
 verbose: 0
 debug: 0
