@@ -3,10 +3,12 @@ openrave/
 v-hacd/
 
 # Other github directories
-tools/voxel_tools/binvox_rw_py
+tools/voxel_tools/binvox_rw_py/
+tools/understanding_gen_stuff.py
 
 # Temporarary generated data directories
-tmp/
+tmp*/
+*.h5
 # Dex-Net ignores
 data/db/*
 *.dexnet
