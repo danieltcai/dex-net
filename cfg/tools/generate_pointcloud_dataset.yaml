@@ -32,8 +32,8 @@ target_objects:
 point_cloud:
   window_height: 100
   window_width: 100
-  num_points: 2048
-  num_grasps_to_keep: 20
+  num_points: 1024
+  remove_table: 1
 
 # Params for random variables controlling the environment (camera intr, camera and object poses)
 env_rv_params:
@@ -118,10 +118,10 @@ tensors:
 
 # Debugging params
 vis:
-  candidate_grasps: 0
   pc_from_depth: 0
   grasp_on_pc: 0
   data_point: 0
+  label: 0
 
 verbose: 0
 debug: 0

@@ -37,42 +37,52 @@ data_start = args.data_start
 
 # Read in h5 file
 f = h5py.File(h5_filename)
-data = f['data'][:]
-label = f['label'][:]
+point_cloud_data = f['data'][:]
+grasp_labels = f['label'][:]
 
 # Debug
 # assert len(data) == len(label)
 # print(len(data))
 # print(len(label))
 
-# Visualize each datapoint
-for i in range(data_start, len(data)):
+# Visualize each training example
+for i in range(data_start, len(point_cloud_data)):
     '''
     what's read should match what's written
-    point_cloud_data = np.reshape(point_cloud_data, [-1, 2048, 3]) # (num_point_clouds x points_per_cloud x 3)
-    truncated_grasp_labels = np.reshape(truncated_grasp_labels, [-1, num_grasps_to_keep, 7]) # (num_point_clouds x num_grasps_per_cloud x 7) CONFIRM THIS DOES WHAT YOU WANT
+    point_cloud_data = np.reshape(point_cloud_data, [-1, num_points, 3]) # (num_eg, num_points, 3)
+    grasp_labels = np.reshape(grasp_labels, [-1, num_points, 7]) # (num_eg, num_points, 7)
     '''
-    point_cloud = data[i]
-    grasps = label[i]
+    point_cloud = point_cloud_data[i] # (num_points, 3)
+    point_labels = grasp_labels[i] # (num_points, 7)
 
-    non_robust_grasps = grasps[np.where(grasps[:,0] <= 0)]
-    robust_grasps = grasps[np.where(grasps[:,0] > 0)]
+    # Check dimensions
+    assert point_cloud.shape[0] == point_labels.shape[0]
+    assert point_cloud.shape[1] == 3
+    assert point_labels.shape[1] == 7
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    pc_xs = point_cloud[:,0]
-    pc_ys = point_cloud[:,1]
-    pc_zs = point_cloud[:,2]
+    # Check label of each point
+    for i, point_label in enumerate(point_labels):
+        # Plot point cloud
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        pc_xs = point_cloud[:,0]
+        pc_ys = point_cloud[:,1]
+        pc_zs = point_cloud[:,2]
+        ax.scatter(pc_xs, pc_ys, pc_zs, s=1, c='blue') # Object point cloud
 
-    ng_xs = non_robust_grasps[:,1]
-    ng_ys = non_robust_grasps[:,2]
-    ng_zs = non_robust_grasps[:,3]
+        # Plot point
+        point = point_cloud[i]
+        ax.scatter(point[0], point[1], point[2], s=50, c='purple') # Object point cloud
 
-    rg_xs = robust_grasps[:,1]
-    rg_ys = robust_grasps[:,2]
-    rg_zs = robust_grasps[:,3]
+        # Plot nearest grasp according to label
+        rg_x = point_label[1]
+        rg_y = point_label[2]
+        rg_z = point_label[3]
 
-    ax.scatter(pc_xs, pc_ys, pc_zs, s=1, c='blue') # Object point cloud
-    ax.scatter(ng_xs, ng_ys, ng_zs, s=25, c='red') # Non robust grasp positions
-    ax.scatter(rg_xs, rg_ys, rg_zs, s=50, c='green') # Robust grasp positions
-    plt.show()
+        exists_near_robust = point_label[0]
+        if exists_near_robust:
+            ax.scatter(rg_x, rg_y, rg_z, s=50, c='green') # Nearby robust grasp positions
+        else: 
+            ax.scatter(rg_x, rg_y, rg_z, s=50, c='red') # Nearest but still too far robust grasp positions
+
+        plt.show()
