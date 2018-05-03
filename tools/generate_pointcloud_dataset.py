@@ -841,7 +841,10 @@ def generate_gqcnn_dataset(dataset_path,
                             # Get index of nearest grasp
                             distance_to_grasps = np.linalg.norm(point - robust_grasp_pos, axis=-1) # (num_grasps, )
                             nearest_grasp_idx = np.argmin(distance_to_grasps)
-                            nearest_grasp = robust_grasps[nearest_grasp_idx] # (7, )
+                            nearest_grasp = np.copy(robust_grasps[nearest_grasp_idx]) # (7, )
+
+                            # Convert nearest grasp to offset: 
+                            nearest_grasp[1:4] -= point
 
                             # Assign grasp to point only if within threshold distance
                             nearest_grasp_distance = distance_to_grasps[nearest_grasp_idx]
@@ -868,9 +871,12 @@ def generate_gqcnn_dataset(dataset_path,
                                 g_ys = robust_grasp_pos[:,1]
                                 g_zs = robust_grasp_pos[:,2]
 
+                                # nearest grasp
+                                ng = point_labels[i, 1:4] + point
+
                                 ax.scatter(xs, ys, zs, s=1, c='blue') # Object point cloud    
-                                ax.scatter(point_labels[i, 1], point_labels[i, 2], point_labels[i, 3], s=50, c='red') # Nearest grasp
-                                ax.scatter(g_xs, g_ys, g_zs, s=30, c='purple') # Other grasps
+                                ax.scatter(ng[0], ng[1], ng[2], s=50, c='red') # Nearest robust grasp
+                                ax.scatter(g_xs, g_ys, g_zs, s=30, c='purple') # Other robust grasps
                                 ax.scatter(point[0], point[1], point[2], s=50, c='green') # Point
 
                                 plt.show()

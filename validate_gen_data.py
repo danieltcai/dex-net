@@ -75,9 +75,10 @@ for i in range(data_start, len(point_cloud_data)):
         ax.scatter(point[0], point[1], point[2], s=50, c='purple') # Object point cloud
 
         # Plot nearest grasp according to label
-        rg_x = point_label[1]
-        rg_y = point_label[2]
-        rg_z = point_label[3]
+        # Dont forget pos is offset from point
+        rg_x = point_label[1] + point[0] 
+        rg_y = point_label[2] + point[1]
+        rg_z = point_label[3] + point[2]
 
         exists_near_robust = point_label[0]
         if exists_near_robust:
