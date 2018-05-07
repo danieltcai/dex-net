@@ -6,6 +6,9 @@ v-hacd/
 tools/voxel_tools/binvox_rw_py/
 tools/understanding_gen_stuff.py
 
+# Generated data caches
+gen_data*
+
 # Temporarary generated data directories
 tmp*/
 *.h5

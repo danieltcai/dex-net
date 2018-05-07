@@ -768,7 +768,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
     # NEW WRITTEN BY ME
     def grasp_camera_T(self, T_obj_camera):
         T_grasp_camera = T_obj_camera * self.T_grasp_obj
-        return T_grasp_camera.translation, T_grasp_camera.euler_angles
+        return T_grasp_camera.translation, T_grasp_camera.euler_angles, T_grasp_camera
 
     @staticmethod
     def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, grasp_angle=0, jaw_width_world=0,

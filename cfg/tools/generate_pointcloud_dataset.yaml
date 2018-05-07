@@ -9,31 +9,32 @@ gripper: yumi_metal_spline # Original
 # Target objects
 target_objects:
   # 3dnet:
+  #   all
   #   - 1053d2629557ac822187df09898670a9
   #   # - 1072f1d1b9531da95833b7f8c91b5b48
   #   # - 109d55a137c042f5760315ac3bf2c13e
   #   # - 10af417d12cbc4badc0dec45107520e9
 
-  #   # all
-  # # kit:
-  # #   all
+  # kit:
+  #   all
 
   # ORIGINAL
   mini_dexnet:
-    - bar_clamp
-    - gearbox
-    - nozzle
-    - part1
-    - part3
-    - pawn
-    - turbine_housing
-    - vase
+    all
+    # - bar_clamp
+    # - gearbox
+    # - nozzle
+    # - part1
+    # - part3
+    # - pawn
+    # - turbine_housing
+    # - vase
 
 point_cloud:
   window_height: 100
   window_width: 100
   num_points: 1024
-  remove_table: 1
+  remove_table: 0
 
 # Params for random variables controlling the environment (camera intr, camera and object poses)
 env_rv_params:
