@@ -924,7 +924,7 @@ def generate_gqcnn_dataset(dataset_path,
                             # Generate label for each point = (grasp_quality, x_offset, y_offset, z_offset, alpha, beta, gamma)
                             point_labels = np.zeros([num_points, 7]) # (num_points x 7) 
                             robust_grasp_pos = robust_grasps[:, 1:4]
-                            threshold = 0.02
+                            threshold = config['point_cloud']['thresh']
 
                             for i, point in enumerate(pc_from_depth):
                                 # Get index of nearest grasp

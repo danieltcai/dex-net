@@ -78,8 +78,10 @@ for eg_idx in range(data_start, len(point_cloud_data)):
 
     # Check label of each point
     for pt_idx, point_label in enumerate(point_labels):
-        print("Label for point: {}".format(pt_idx))
-        print(point_labels[pt_idx])
+        print("Label for point (rad and deg): {}".format(pt_idx))
+        point_label_deg = np.concatenate([point_label[0:4], np.rad2deg(point_label[4:])]) 
+        print(point_label)
+        print(point_label_deg)
 
         # Plot point cloud
         fig = plt.figure()
@@ -91,7 +93,7 @@ for eg_idx in range(data_start, len(point_cloud_data)):
 
         # Plot grasp position
         point = point_cloud[pt_idx]
-        ax.scatter(point[0], point[1], point[2], s=50, c='purple') # Object point cloud
+        ax.scatter(point[0], point[1], point[2], s=50, c='purple') # Point being considered
 
         # Plot nearest grasp according to label. Dont forget pos is offset from point
         grasp_x = point_label[1] + point[0] 

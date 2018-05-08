@@ -35,6 +35,7 @@ point_cloud:
   window_width: 100
   num_points: 1024
   remove_table: 0
+  thresh: 0.02
 
 # Params for random variables controlling the environment (camera intr, camera and object poses)
 env_rv_params:
